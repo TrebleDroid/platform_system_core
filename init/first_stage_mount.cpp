@@ -820,10 +820,17 @@ bool DoFirstStageMount(bool create_devices) {
     }
 
     if (create_devices) {
-        if (!(*fsm)->DoCreateDevices()) return false;
+        if (!(*fsm)->DoCreateDevices()) LOG(ERROR) << "Failed to create devices";
     }
 
-    return (*fsm)->DoFirstStageMount();
+    if(!(*fsm)->DoFirstStageMount()) {
+	    *fsm = nullptr;
+	    auto fstab = ReadFirstStageFstab();
+	    auto v = std::make_unique<FirstStageMountVBootV1>(std::move(*fstab));
+	    v->DoCreateDevices();
+	    return v->DoFirstStageMount();
+    }
+    return true;
 }
 
 void SetInitAvbVersionInRecovery() {
