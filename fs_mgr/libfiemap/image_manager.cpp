@@ -156,7 +156,7 @@ bool ImageManager::MetadataDirIsTest() const {
 }
 
 bool ImageManager::IsUnreliablePinningAllowed() const {
-    return IsSubdir(data_dir_, "/data/gsi/dsu/") || MetadataDirIsTest();
+    return IsSubdir(data_dir_, "/data/gsi/dsu/") || MetadataDirIsTest() || IsSubdir(data_dir_, "/data/gsi/phh/");
 }
 
 FiemapStatus ImageManager::CreateBackingImage(
