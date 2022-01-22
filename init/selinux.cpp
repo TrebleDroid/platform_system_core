@@ -62,6 +62,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fstream>
+#include <fcntl.h>
+#include <strings.h>
+#include <sys/sysmacros.h>
 
 #include <CertUtils.h>
 #include <android-base/chrono_utils.h>
@@ -80,12 +83,16 @@
 #include <mini_keyctl_utils.h>
 #include <selinux/android.h>
 #include <ziparchive/zip_archive.h>
+#include <sys/mount.h>
+#include <libfiemap/image_manager.h>
+#include <liblp/partition_opener.h>
 
 #include "block_dev_initializer.h"
 #include "debug_ramdisk.h"
 #include "reboot_utils.h"
 #include "snapuserd_transition.h"
 #include "util.h"
+#include "switch_root.h"
 
 using namespace std::string_literals;
 
@@ -94,6 +101,7 @@ using android::base::Timer;
 using android::base::unique_fd;
 using android::fs_mgr::AvbHandle;
 using android::snapshot::SnapshotManager;
+using android::fiemap::IImageManager;
 
 namespace android {
 namespace init {
@@ -920,6 +928,60 @@ static void LoadSelinuxPolicy(std::string& policy) {
     }
 }
 
+static void setupPhhOta() {
+	setenv("PHH_STEP2", (char*)"1", 1);
+	if(getenv("PHH_OTA")) return;
+	setenv("PHH_STEP3", (char*)"1", 1);
+
+	std::string phh_ota;
+	if(!base::ReadFileToString("/metadata/phh/img", &phh_ota)) return;
+	const char *slot = "a";
+	if(phh_ota.c_str()[0] == 'b')
+		slot = "b";
+	setenv("PHH_OTA_SLOT", (char*)slot, 1);
+	setenv("PHH_STEP4", (char*)"1", 1);
+
+	std::string imageNameStr = "system_otaphh_"s + slot;
+
+	BlockDevInitializer block_dev_init;
+	block_dev_init.InitDeviceMapper();
+	block_dev_init.InitDevices({"userdata"});
+
+	auto images = IImageManager::Open("phh", 0ms);
+	std::string blockDev;
+	android::fs_mgr::PartitionOpener opener;
+	if(!images->MapImageWithDeviceMapper(opener, imageNameStr, &blockDev)) return;
+
+	// For some reason, I can't get block_dev_init to find system_otaphh_X, so construct it ourselves
+	int major = atoi(blockDev.c_str());
+	const char *minorStr = strstr(blockDev.c_str(), ":")+1;
+	int minor = atoi(minorStr);
+	int eee = mknod("/dev/root-otaphh", 0644 | S_IFBLK, makedev(major, minor));
+
+	base::WriteStringToFile("phh mknod returned " + std::to_string(eee) + " of " + std::to_string(major) + " " + std::to_string(minor), "/dev/kmsg");
+	setenv("PHH_STEP5", (char*)"1", 1);
+
+	umount2("/debug_ramdisk", 0);
+	umount2("/debug_ramdisk", MNT_DETACH);
+	int mountRes = mount("/dev/root-otaphh", "/debug_ramdisk", "ext4", MS_RDONLY, "");
+	putenv((char*)"PHH_OTA=1");
+	base::WriteStringToFile("phh_ota setup " + blockDev, "/dev/kmsg");
+	base::WriteStringToFile("phh mount returned " + std::to_string(mountRes), "/dev/kmsg");
+	base::WriteStringToFile("errno is " + std::to_string(errno), "/dev/kmsg");
+
+	if(mountRes != 0) return;
+
+	SwitchRoot("/debug_ramdisk");
+
+	const char* path = "/system/bin/init";
+	const char* args[] = {path, "selinux_setup", nullptr};
+	auto fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+	dup2(fd, STDOUT_FILENO);
+	dup2(fd, STDERR_FILENO);
+	close(fd);
+	execv(path, const_cast<char**>(args));
+}
+
 // The SELinux setup process is carefully orchestrated around snapuserd. Policy
 // must be loaded off dynamic partitions, and during an OTA, those partitions
 // cannot be read without snapuserd. But, with kernel-privileged snapuserd
@@ -942,6 +1004,8 @@ int SetupSelinux(char** argv) {
     if (REBOOT_BOOTLOADER_ON_PANIC) {
         InstallRebootSignalHandlers();
     }
+    setenv("PHH_STEP1", (char*)"1", 1);
+    setupPhhOta();
 
     boot_clock::time_point start_time = boot_clock::now();
 
