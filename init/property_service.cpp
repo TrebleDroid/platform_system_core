@@ -787,8 +787,12 @@ static void LoadProperties(char* data, const char* filter, const char* filename,
                 } else if (it->second != value) {
                     LOG(WARNING) << "Overriding previous property '" << key << "':'" << it->second
                                  << "' with new value '" << value << "'";
-                    it->second = value;
-                }
+                    if(strcmp("ro.apex.updatable", key) == 0) {
+                        LOG(WARNING) << "... Ignored";
+                    } else {
+                        it->second = value;
+                    }
+		}
             } else {
                 LOG(ERROR) << "Do not have permissions to set '" << key << "' to '" << value
                            << "' in property file '" << filename << "': " << error;
