@@ -69,6 +69,7 @@ cc_defaults {
         "file_wait.cpp",
         "fs_mgr.cpp",
         "fs_mgr_format.cpp",
+        "fs_mgr_verity.cpp",
         "fs_mgr_dm_linear.cpp",
         "fs_mgr_overlayfs.cpp",
         "fs_mgr_roots.cpp",
