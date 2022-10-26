@@ -662,11 +662,15 @@ Result<void> Service::Start() {
                       limit_percent_ != -1 || !limit_property_.empty();
     errno = -createProcessGroup(proc_attr_.uid, pid_, use_memcg);
     if (errno != 0) {
+        PLOG(ERROR) << "createProcessGroup(" << proc_attr_.uid << ", " << pid_ <<  ") failed for service '" << name_ << "'";
+
+#if 0
         if (char byte = 0; write((*pipefd)[1], &byte, 1) < 0) {
             return ErrnoError() << "sending notification failed";
         }
         return Error() << "createProcessGroup(" << proc_attr_.uid << ", " << pid_
                        << ") failed for service '" << name_ << "'";
+#endif
     }
 
     if (use_memcg) {
