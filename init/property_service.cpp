@@ -61,6 +61,7 @@
 #include <selinux/android.h>
 #include <selinux/label.h>
 #include <selinux/selinux.h>
+#include <sys/utsname.h>
 
 #include "debug_ramdisk.h"
 #include "epoll.h"
@@ -632,6 +633,16 @@ uint32_t InitPropertySet(const std::string& name, const std::string& value) {
 static bool load_properties_from_file(const char*, const char*,
                                       std::map<std::string, std::string>*);
 
+static bool kernel_supports_capex() {
+    //Put a threshold at >= 5.0
+    struct utsname buf;
+    uname(&buf);
+    const char *where = buf.release;
+    int a = atoi(where);
+    if(a <= 4) return false;
+    return true;
+}
+
 /*
  * Filter is used to decide which properties to load: NULL loads all keys,
  * "ro.foo.*" is a prefix match, and "ro.foo.bar" is an exact match.
@@ -726,7 +737,9 @@ static void LoadProperties(char* data, const char* filter, const char* filename,
                 } else if (it->second != value) {
                     LOG(WARNING) << "Overriding previous property '" << key << "':'" << it->second
                                  << "' with new value '" << value << "'";
-                    if(strcmp("ro.apex.updatable", key) == 0 || strstr(key, "adb") || strstr(key, "secure")) {
+                    if(strcmp("ro.apex.updatable", key) == 0 && !kernel_supports_capex()) {
+                        LOG(WARNING) << "... Ignored apex by kernel version";
+                    } else if(strstr(key, "adb") || strstr(key, "secure")) {
                         LOG(WARNING) << "... Ignored";
                     } else {
                         it->second = value;
