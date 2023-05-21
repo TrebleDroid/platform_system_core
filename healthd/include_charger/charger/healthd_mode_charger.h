@@ -103,6 +103,7 @@ class Charger {
     void ProcessHallSensor(int code);
     void HandleInputState(int64_t now);
     void HandlePowerSupplyState(int64_t now);
+    void UpdateLedState();
     int InputCallback(int fd, unsigned int epevents);
     void InitAnimation();
     int RequestEnableSuspend();
