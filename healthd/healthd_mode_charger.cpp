@@ -93,9 +93,9 @@ char* locale;
 
 #define LAST_KMSG_MAX_SZ (32 * 1024)
 
-#define LOGE(x...) KLOG_ERROR("charger", x);
-#define LOGW(x...) KLOG_WARNING("charger", x);
-#define LOGV(x...) KLOG_DEBUG("charger", x);
+#define LOGE(x...) KLOG_ERROR("charger", x); fprintf(stderr,x);
+#define LOGW(x...) KLOG_WARNING("charger", x); fprintf(stderr,x);
+#define LOGV(x...) KLOG_DEBUG("charger", x); fprintf(stderr,x);
 
 namespace android {
 
@@ -300,6 +300,23 @@ void Charger::BlankSecScreen() {
         init_screen_ = true;
     }
 }
+
+void Charger::UpdateLedState() {
+
+    if (!have_battery_state_) return;
+    if (health_info_.battery_level == 0 && health_info_.battery_status == BatteryStatus::UNKNOWN) return ;
+
+    // TODO set led with battery_level in % (0->100%)
+    LOGV("Battery level = %d\n",health_info_.battery_level);
+
+    /*
+    /sys/class/leds/red/brightness
+    /sys/class/leds/green/brightness
+    /sys/class/leds/blue/brightness
+    */
+
+}
+
 
 void Charger::UpdateScreenState(int64_t now) {
     int disp_time;
@@ -609,6 +626,9 @@ void Charger::OnHeartbeat() {
      * screen transitions (animations, etc)
      */
     UpdateScreenState(now);
+
+    // Update Led color
+    UpdateLedState();
 }
 
 void Charger::OnHealthInfoChanged(const ChargerHealthInfo& health_info) {
