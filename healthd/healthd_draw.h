@@ -84,9 +84,15 @@ class HealthdDraw {
   // true if minui init'ed OK, false if minui init failed
   bool graphics_available;
 
+  // true if kirin found
+  bool is_kirin;
+  uint32_t mMaxBrightness;
+
  private:
   // Configures font using given animation.
   HealthdDraw(animation* anim);
+  // Set brightness
+  void set_brightness(uint32_t value);
 };
 
 #endif  // HEALTHD_DRAW_H

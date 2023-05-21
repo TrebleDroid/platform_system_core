@@ -15,18 +15,28 @@
  */
 
 #include <android-base/stringprintf.h>
+#include <android-base/file.h>
 #include <batteryservice/BatteryService.h>
 #include <cutils/klog.h>
+#include <cutils/properties.h>
+#include <unistd.h>
 
 #include "healthd_draw.h"
+
 
 #if !defined(__ANDROID_VNDK__)
 #include "charger.sysprop.h"
 #endif
 
-#define LOGE(x...) KLOG_ERROR("charger", x);
-#define LOGW(x...) KLOG_WARNING("charger", x);
-#define LOGV(x...) KLOG_DEBUG("charger", x);
+#define HARDWARE_MODEL "ro.hardware"
+
+#define LOGE(x...) KLOG_ERROR("charger", x); fprintf(stderr,x);
+#define LOGW(x...) KLOG_WARNING("charger", x); fprintf(stderr,x);
+#define LOGV(x...) KLOG_DEBUG("charger", x); fprintf(stderr,x);
+
+using ::android::base::ReadFileToString;
+using ::android::base::WriteStringToFile;
+
 
 static bool get_split_screen() {
 #if !defined(__ANDROID_VNDK__)
@@ -73,9 +83,40 @@ HealthdDraw::HealthdDraw(animation* anim)
         (res = gr_init_font(anim->text_clock.font_file.c_str(), &anim->text_clock.font)) < 0) {
         LOGE("Could not load time font (%d)\n", res);
     }
+
     if (!anim->text_percent.font_file.empty() &&
         (res = gr_init_font(anim->text_percent.font_file.c_str(), &anim->text_percent.font)) < 0) {
         LOGE("Could not load percent font (%d)\n", res);
+    }
+
+    // Try to find kirin/huawei hardware
+    char prop_hardware[PROPERTY_VALUE_MAX] = {};
+
+    is_kirin = false;
+    if (property_get(HARDWARE_MODEL, prop_hardware, "") > 0) {
+        if (!strcmp(prop_hardware,"hi3660")
+            || !strcmp(prop_hardware,"hi3670")
+            || !strcmp(prop_hardware,"hi6250")
+            || !strcmp(prop_hardware,"kirin"))
+        {
+            LOGV("Kirin Huawei found\n");
+            is_kirin=true;
+
+            mMaxBrightness=4095;
+            std::string content_str;
+
+            if (ReadFileToString("/sys/class/leds/lcd_backlight0/max_brightness", &content_str)) {
+                mMaxBrightness = std::stoi(content_str);
+            }
+            else {
+                if (ReadFileToString("/sys/class/leds/lcd_backlight/max_brightness", &content_str)) {
+                    mMaxBrightness = std::stoi(content_str);
+                }
+            }
+
+            // Set max brightness
+            set_brightness(mMaxBrightness);
+        }
     }
 }
 
@@ -94,9 +135,42 @@ void HealthdDraw::redraw_screen(const animation* batt_anim, GRSurface* surf_unkn
     gr_flip();
 }
 
+void HealthdDraw::set_brightness(uint32_t value) {
+    LOGV("Kirin - Try to set brightness to %d\n",value)
+    if (WriteStringToFile(std::to_string(value), "/sys/class/leds/lcd_backlight0/brightness")==false) {
+        LOGW("Kirin - WriteStringToFile failed lcd_backlight0, unable to set brightness (lcd_backlight0)\n");
+        if (WriteStringToFile(std::to_string(0), "/sys/class/leds/lcd_backlight/brightness")==false) {
+            LOGE("Kirin - WriteStringToFile failed lcd_backlight, unable to set brightness (lcd_backlight)\n");
+        }
+    }
+}
+
+
 void HealthdDraw::blank_screen(bool blank, int drm) {
+
     if (!graphics_available) return;
-    gr_fb_blank(blank, drm);
+
+    bool bmulti=gr_has_multiple_connectors();
+
+    if (bmulti && (drm==1)) {
+        KLOG_WARNING("charger", "minui graphic backend don't support multi-connector for blank screen\n");
+    }
+
+    if (is_kirin) {
+        if (blank==true) {
+            LOGV("Kirin - clear screen\n")
+            //clear_screen();
+            //gr_flip();
+            set_brightness(0);
+        }
+        else {
+            set_brightness(mMaxBrightness);
+        }
+    }
+    else {
+        LOGV("Blank screen with minui api)\n");
+        gr_fb_blank(blank, drm);
+    }
 }
 
 // support screen rotation for foldable phone
