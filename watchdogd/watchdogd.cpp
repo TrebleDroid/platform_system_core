@@ -20,12 +20,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <android-base/logging.h>
 
 #define DEV_NAME "/dev/watchdog"
+#define DEV_NAME2 "/dev/watchdog1"
 
 int main(int argc, char** argv) {
+    struct stat st_buf;
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
     int interval = 10;
@@ -40,6 +43,13 @@ int main(int argc, char** argv) {
     if (fd == -1) {
         PLOG(ERROR) << "Failed to open " << DEV_NAME;
         return 1;
+    }
+
+    int fd2 = open(DEV_NAME2, O_RDWR | O_CLOEXEC);
+    fstat(fd2, &st_buf);
+    if ((st_buf.st_mode & S_IFMT) != S_IFCHR) {
+        close(fd2);
+        fd2 = -1;
     }
 
     int timeout = interval + margin;
@@ -61,8 +71,31 @@ int main(int argc, char** argv) {
         }
     }
 
+    if(fd2 >= 0) {
+        int interval2 = interval;
+        ret = ioctl(fd2, WDIOC_SETTIMEOUT, &timeout);
+        if (ret) {
+            PLOG(ERROR) << "Failed to set2 timeout to " << timeout;
+            ret = ioctl(fd, WDIOC_GETTIMEOUT, &timeout);
+            if (ret) {
+                PLOG(ERROR) << "Failed to get timeout";
+            } else {
+                if (timeout > margin) {
+                    interval2 = timeout - margin;
+                } else {
+                    interval2 = 1;
+                }
+                LOG(WARNING) << "Adjusted interval to timeout returned by driver: "
+                             << "timeout " << timeout << ", interval " << interval2 << ", margin "
+                             << margin;
+            }
+        }
+        if(interval2 < interval) interval = interval2;
+    }
+
     while (true) {
         write(fd, "", 1);
+        if (fd2 >= 0) write(fd2, "", 1);
         sleep(interval);
     }
 }
