@@ -370,6 +370,13 @@ static void tune_quota(const std::string& blk_device, const FstabEntry& entry,
         return;
     }
 
+    // There is no relation between quotas and encryption disabled, it's just that encryption
+    // being disabled shows that the device is pretty old, so quotas might be broken on it
+    if (!entry.fs_mgr_flags.file_encryption) {
+        LINFO << "Disabling quotas on legacy devices with encryption disabled";
+        want_quota = false;
+    }
+
     if (!tune2fs_available()) {
         LERROR << "Unable to " << (want_quota ? "enable" : "disable") << " quotas on " << blk_device
                << " because " TUNE2FS_BIN " is missing";
