@@ -385,6 +385,14 @@ static void tune_quota(const std::string& blk_device, const FstabEntry& entry,
         want_quota = false;
     }
 
+    struct utsname uts;
+    unsigned int major, minor;
+
+    if ((uname(&uts) == 0) && (sscanf(uts.release, "%u.%u", &major, &minor) == 2)) {
+        if(major < 4) want_projid = false;
+        if(major == 4 && minor < 9) want_projid = false;
+    }
+
     if (!tune2fs_available()) {
         LERROR << "Unable to " << (want_quota ? "enable" : "disable") << " quotas on " << blk_device
                << " because " TUNE2FS_BIN " is missing";
