@@ -438,7 +438,6 @@ bool FirstStageMount::MountPartition(const Fstab::iterator& begin, bool erase_sa
     }
     if (!SetUpDmVerity(&(*begin))) {
         PLOG(ERROR) << "Failed to setup verity for '" << begin->mount_point << "'";
-        return false;
     }
 
     bool mounted = (fs_mgr_do_mount_one(*begin) == 0);
