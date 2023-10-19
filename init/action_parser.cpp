@@ -47,6 +47,7 @@ bool IsActionableProperty(Subcontext* subcontext, const std::string& prop_name) 
             "init.svc.vendor.", "ro.vendor.",    "persist.vendor.",
             "vendor.",          "init.svc.odm.", "ro.odm.",
             "persist.odm.",     "odm.",          "ro.boot.",
+            "nubia.perf."
     };
 
     for (const auto& prefix : kPartnerPrefixes) {
