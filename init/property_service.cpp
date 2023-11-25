@@ -800,7 +800,7 @@ static void LoadProperties(char* data, const char* filter, const char* filename,
                                  << "' with new value '" << value << "'";
                     if(strcmp("ro.apex.updatable", key) == 0 && !kernel_supports_capex()) {
                         LOG(WARNING) << "... Ignored apex by kernel version";
-                    } else if(strstr(key, "adb") || strstr(key, "secure")) {
+                    } else if(strstr(key, "adb") || strstr(key, "secure") || strstr(key, "ro.logd.kernel")) {
                         LOG(WARNING) << "... Ignored";
                     } else {
                         it->second = value;
