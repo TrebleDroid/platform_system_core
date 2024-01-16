@@ -697,8 +697,18 @@ static bool kernel_supports_capex() {
     uname(&buf);
     const char *where = buf.release;
     int a = atoi(where);
-    if(a <= 4) return false;
-    return true;
+    if(a >= 5) return true;
+
+    // If there are vendor apexes, we most likely actually need them
+    auto dir = std::unique_ptr<DIR, decltype(&closedir)>{opendir("/vendor/apex"), closedir};
+    if (!dir) {
+        return false;
+    }
+    for (struct dirent* ent = readdir(dir.get()); ent; ent = readdir(dir.get())) {
+        if(strstr(ent->d_name, "apex")) return true;
+    }
+
+    return false;
 }
 
 /*
