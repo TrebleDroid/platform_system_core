@@ -803,17 +803,22 @@ static void LoadProperties(char* data, const char* filter, const char* filename,
             std::string error;
             if (CheckPermissions(key, value, context, cr, &error) == PROP_SUCCESS) {
                 auto it = properties->find(key);
+                const char *new_value = value;
+
+                if(strcmp("ro.apex.updatable", key) == 0) {
+                    new_value = kernel_supports_capex() ? "true" : "false";
+                }
                 if (it == properties->end()) {
-                    (*properties)[key] = value;
-                } else if (it->second != value) {
+                    (*properties)[key] = new_value;
+                } else if (it->second != new_value) {
                     LOG(WARNING) << "Overriding previous property '" << key << "':'" << it->second
                                  << "' with new value '" << value << "'";
-                    if(strcmp("ro.apex.updatable", key) == 0 && !kernel_supports_capex()) {
+                    if(strcmp("ro.apex.updatable", key) == 0) {
                         LOG(WARNING) << "... Ignored apex by kernel version";
                     } else if(strstr(key, "adb") || strstr(key, "secure") || strstr(key, "ro.logd.kernel")) {
                         LOG(WARNING) << "... Ignored";
                     } else {
-                        it->second = value;
+                        it->second = new_value;
                     }
 		}
             } else {
