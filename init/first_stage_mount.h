@@ -17,8 +17,13 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "result.h"
+#include "fs_mgr.h"
+#include "block_dev_initializer.h"
+
+#include <libsnapshot/snapshot.h>
 
 namespace android {
 namespace init {
@@ -30,12 +35,48 @@ class FirstStageMount {
     // The factory method to create a FirstStageMount instance.
     static Result<std::unique_ptr<FirstStageMount>> Create(const std::string& cmdline);
     // Creates devices and logical partitions from storage devices
-    virtual bool DoCreateDevices() = 0;
+    bool DoCreateDevices();
     // Mounts fstab entries read from device tree.
-    virtual bool DoFirstStageMount() = 0;
+    bool DoFirstStageMount();
 
   protected:
-    FirstStageMount() = default;
+    FirstStageMount(fs_mgr::Fstab fstab);
+
+    bool InitDevices();
+    bool InitRequiredDevices(std::set<std::string> devices);
+    bool CreateLogicalPartitions();
+    bool CreateSnapshotPartitions(android::snapshot::SnapshotManager* sm);
+    bool MountPartition(const fs_mgr::Fstab::iterator& begin, bool erase_same_mounts,
+                        fs_mgr::Fstab::iterator* end = nullptr);
+
+    bool MountPartitions();
+    bool TrySwitchSystemAsRoot();
+    bool IsDmLinearEnabled();
+    void GetSuperDeviceName(std::set<std::string>* devices);
+    bool InitDmLinearBackingDevices(const android::fs_mgr::LpMetadata& metadata);
+    void UseDsuIfPresent();
+    // Reads all fstab.avb_keys from the ramdisk for first-stage mount.
+    void PreloadAvbKeys();
+    // Copies /avb/*.avbpubkey used for DSU from the ramdisk to /metadata for key
+    // revocation check by DSU installation service.
+    void CopyDsuAvbKeys();
+
+    virtual bool GetDmVerityDevices(std::set<std::string>* devices) = 0;
+    virtual bool SetUpDmVerity(fs_mgr::FstabEntry* fstab_entry) = 0;
+
+    bool need_dm_verity_;
+    bool dsu_not_on_userdata_ = false;
+    bool use_snapuserd_ = false;
+
+    fs_mgr::Fstab fstab_;
+    // The super path is only set after InitDevices, and is invalid before.
+    std::string super_path_;
+    std::string super_partition_name_;
+    BlockDevInitializer block_dev_init_;
+    // Reads all AVB keys before chroot into /system, as they might be used
+    // later when mounting other partitions, e.g., /vendor and /product.
+    std::map<std::string, std::vector<std::string>> preload_avb_key_blobs_;
+
 };
 
 void SetInitAvbVersionInRecovery();
