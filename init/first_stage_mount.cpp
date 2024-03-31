@@ -267,7 +267,19 @@ bool FirstStageMountVBootV2::DoFirstStageMount() {
         return true;
     }
 
-    if (!MountPartitions()) return false;
+    if (!MountPartitions()) {
+        // Cheat and disable avb
+        for(auto& part: fstab_) {
+            part.avb_keys = "";
+            part.fs_mgr_flags.avb = false;
+            LOG(ERROR) << "Failed Mouting partitions with avb. Retrying without it.";
+            if (!MountPartitions()) {
+                LOG(ERROR) << "... still failed";
+                return false;
+            }
+        }
+
+    }
 
     return true;
 }
