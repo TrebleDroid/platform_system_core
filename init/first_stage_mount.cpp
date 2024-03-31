@@ -240,6 +240,12 @@ Result<std::unique_ptr<FirstStageMount>> FirstStageMount::Create(const std::stri
     } else {
         fstab = ReadFirstStageFstabAndroid();
     }
+    if (cmdline.find("no_vbmeta") != std::string::npos) {
+        for(auto& part: *fstab) {
+            part.avb_keys = "";
+            part.fs_mgr_flags.avb = false;
+        }
+    }
     if (!fstab.ok()) {
         return fstab.error();
     }
@@ -276,7 +282,9 @@ bool FirstStageMountVBootV2::DoFirstStageMount() {
         return true;
     }
 
-    if (!MountPartitions()) return false;
+    if (!MountPartitions()) {
+        return false;
+    }
 
     return true;
 }

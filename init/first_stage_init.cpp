@@ -533,7 +533,11 @@ int FirstStageMain(int argc, char** argv) {
         }
 
         if (!created_devices && !fsm->DoCreateDevices()) {
-            LOG(FATAL) << "Failed to create devices required for first stage mount";
+            LOG(ERROR) << "Failed to create devices required for first stage mount, retrying without avb";
+            fsm = CreateFirstStageMount(cmdline + " no_vbmeta");
+            if(!fsm->DoCreateDevices()) {
+                LOG(FATAL) << "Failed to create devices required for first stage mount, retrying without avb";
+            }
         }
 
         if (!fsm->DoFirstStageMount()) {
