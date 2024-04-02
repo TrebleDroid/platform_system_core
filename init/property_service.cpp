@@ -710,26 +710,6 @@ uint32_t InitPropertySet(const std::string& name, const std::string& value) {
 static Result<void> load_properties_from_file(const char*, const char*,
                                               std::map<std::string, std::string>*);
 
-static bool kernel_supports_capex() {
-    //Put a threshold at >= 5.0
-    struct utsname buf;
-    uname(&buf);
-    const char *where = buf.release;
-    int a = atoi(where);
-    if(a >= 5) return true;
-
-    // If there are vendor apexes, we most likely actually need them
-    auto dir = std::unique_ptr<DIR, decltype(&closedir)>{opendir("/vendor/apex"), closedir};
-    if (!dir) {
-        return false;
-    }
-    for (struct dirent* ent = readdir(dir.get()); ent; ent = readdir(dir.get())) {
-        if(strstr(ent->d_name, "apex")) return true;
-    }
-
-    return false;
-}
-
 /*
  * Filter is used to decide which properties to load: NULL loads all keys,
  * "ro.foo.*" is a prefix match, and "ro.foo.bar" is an exact match.
@@ -825,7 +805,7 @@ static void LoadProperties(char* data, const char* filter, const char* filename,
                 const char *new_value = value;
 
                 if(strcmp("ro.apex.updatable", key) == 0) {
-                    new_value = kernel_supports_capex() ? "true" : "false";
+                    new_value = "true";
                 }
                 if (it == properties->end()) {
                     (*properties)[key] = new_value;
